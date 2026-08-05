@@ -1,0 +1,8 @@
+target/
+target-*/
+*.filter
+*.info
+*.tar
+*.fastq
+*.fastq.gz
+!testdata/ref.fasta

@@ -1,0 +1,438 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>web-fastq-human-remover · Remove human reads in your browser</title>
+<style>
+:root {
+  --bg: #0f1518; --bg-card: #1a2226; --bg-soft: #141a1d; --bg-softer: #10161a;
+  --bg-info: #0f2426; --bg-alert: #321614; --bg-alert-soft: #261411; --bg-success-soft: #112a1d;
+  --border: #2a3438; --border-soft: #1f262a; --border-strong: #3a4347;
+  --ink: #d6dde0; --ink-soft: #b0afaa; --ink-muted: #797870;
+  --accent: #00a3a6; --accent-hover: #008f92; --accent-soft: rgba(0,163,166,.18);
+  --success: #2a8a55; --danger: #c0392b; --warn: #d0a215;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,.4); --shadow-md: 0 4px 14px rgba(0,0,0,.45);
+  --radius-sm: 4px; --radius-md: 8px; --radius-lg: 12px;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+}
+:root[data-theme="light"] {
+  --bg: #f6f8f8; --bg-card: #ffffff; --bg-soft: #eef2f2; --bg-softer: #f2f5f5;
+  --bg-info: #e6f4f4; --bg-alert: #fdece9; --bg-alert-soft: #fdf3ef; --bg-success-soft: #e8f5ee;
+  --border: #d6dedf; --border-soft: #e6ecec; --border-strong: #b9c4c5;
+  --ink: #17232a; --ink-soft: #4a585e; --ink-muted: #78868c;
+  --accent: #00817f; --accent-hover: #00686a; --accent-soft: rgba(0,129,127,.14);
+  --shadow-sm: 0 1px 2px rgba(0,0,0,.06); --shadow-md: 0 4px 14px rgba(0,0,0,.08);
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font-sans);
+       font-size: 15px; line-height: 1.55; }
+a { color: var(--accent); }
+
+.beta-bar { background: #3a2c08; color: #f0d68a; text-align: center; padding: .45rem 1rem;
+            font-size: .85rem; border-bottom: 1px solid #55420c; }
+:root[data-theme="light"] .beta-bar { background: #fdf3d6; color: #6b5310; border-color: #e8d79a; }
+.beta-tag { background: var(--warn); color: #2a2100; font-weight: 700; border-radius: var(--radius-sm);
+            padding: .05rem .4rem; font-size: .72rem; letter-spacing: .04em; margin-right: .5rem; }
+
+.app-header { display: flex; align-items: center; justify-content: space-between;
+  padding: .8rem 1.5rem; border-bottom: 1px solid var(--border); background: var(--bg-soft); }
+.brand { display: flex; align-items: center; gap: .75rem; text-decoration: none; color: inherit; }
+.brand-logo { width: 34px; height: 34px; border-radius: var(--radius-md); background: var(--accent);
+  color: #fff; display: grid; place-items: center; font-weight: 700; font-size: 1.05rem; }
+.brand-title { display: block; font-weight: 700; font-size: 1rem; }
+.brand-tagline { display: block; color: var(--ink-muted); font-size: .82rem; }
+.theme-toggle { background: transparent; border: 1px solid var(--border); color: var(--ink-soft);
+  border-radius: var(--radius-md); padding: .4rem .55rem; cursor: pointer; line-height: 0; }
+.theme-toggle:hover { border-color: var(--border-strong); color: var(--ink); }
+
+main { max-width: 62rem; margin: 0 auto; padding: 1.8rem 1.5rem 4rem; }
+h1 { font-size: 1.55rem; margin: 0 0 .3rem; }
+.sub { color: var(--ink-muted); margin: 0 0 1.4rem; }
+
+.banner { display: flex; gap: .7rem; padding: .85rem 1rem; border-radius: var(--radius-md);
+  margin-bottom: 1rem; font-size: .9rem; }
+.banner svg { flex: 0 0 auto; margin-top: .15rem; }
+.banner-info { background: var(--bg-info); border: 1px solid var(--accent); }
+.banner-warn { background: var(--bg-alert-soft); border: 1px solid var(--warn); color: var(--ink-soft); }
+.banner-warn b, .banner-info b { color: var(--ink); }
+
+.card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg);
+  padding: 1.2rem 1.3rem; margin-bottom: 1.1rem; box-shadow: var(--shadow-sm); }
+.card > h2 { font-size: 1.05rem; margin: 0 0 .9rem; }
+.card.disabled { opacity: .5; pointer-events: none; }
+
+.row { display: flex; flex-wrap: wrap; gap: .7rem; align-items: center; margin: .55rem 0; }
+label.lbl { color: var(--ink-soft); font-size: .9rem; }
+.note { color: var(--ink-muted); font-size: .84rem; margin: .5rem 0 0; }
+
+select, input[type=text], input[type=number] {
+  background: var(--bg-softer); color: var(--ink); border: 1px solid var(--border);
+  border-radius: var(--radius-md); padding: .45rem .6rem; font: inherit; font-size: .9rem; }
+input[type=range] { accent-color: var(--accent); flex: 1 1 12rem; min-width: 8rem; }
+.check { display: flex; align-items: center; gap: .5rem; color: var(--ink-soft); font-size: .9rem;
+  cursor: pointer; user-select: none; }
+.check input { accent-color: var(--accent); width: 1rem; height: 1rem; cursor: pointer; }
+
+button { font: inherit; font-size: .9rem; border-radius: var(--radius-md); padding: .5rem 1rem;
+  border: 1px solid var(--border-strong); background: transparent; color: var(--ink); cursor: pointer; }
+button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+button:disabled { opacity: .38; cursor: not-allowed; }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+button.primary:hover:not(:disabled) { background: var(--accent-hover); border-color: var(--accent-hover); color: #fff; }
+
+.drop { border: 2px dashed var(--border-strong); border-radius: var(--radius-md);
+  padding: 1.6rem 1rem; text-align: center; cursor: pointer; transition: .15s; }
+.drop:hover, .drop.over { border-color: var(--accent); background: var(--accent-soft); }
+.drop b { color: var(--ink); }
+.drop-sub { color: var(--ink-muted); font-size: .84rem; margin-top: .35rem; }
+
+.chips { display: flex; flex-wrap: wrap; gap: .45rem; margin-top: .8rem; }
+.chip { background: var(--bg-softer); border: 1px solid var(--border); border-radius: 999px;
+  padding: .25rem .75rem; font-size: .82rem; font-family: var(--font-mono); display: flex; gap: .5rem; align-items: center; }
+.chip .x { cursor: pointer; color: var(--ink-muted); }
+.chip .x:hover { color: var(--danger); }
+
+
+.bar { height: 6px; border-radius: 3px; background: var(--bg-softer); overflow: hidden; margin: .8rem 0 .3rem; }
+.bar > div { height: 100%; width: 0; background: var(--accent); transition: width .15s; }
+.bar-lbl { display: flex; justify-content: space-between; font-size: .82rem; color: var(--ink-muted); }
+
+table { width: 100%; border-collapse: collapse; font-size: .88rem; margin-top: .4rem; }
+th, td { text-align: right; padding: .45rem .6rem; border-bottom: 1px solid var(--border-soft); }
+th:first-child, td:first-child { text-align: left; font-family: var(--font-mono); }
+th { color: var(--ink-muted); font-weight: 600; font-size: .8rem; text-transform: uppercase; letter-spacing: .03em; }
+td.pct { color: var(--accent); font-weight: 600; }
+
+.log { font-family: var(--font-mono); font-size: .82rem; color: var(--ink-soft);
+  background: var(--bg-softer); border-radius: var(--radius-md); padding: .7rem .85rem;
+  max-height: 12rem; overflow-y: auto; white-space: pre-wrap; word-break: break-word; }
+.log .err { color: var(--danger); }
+.log .ok { color: var(--success); }
+footer { color: var(--ink-muted); font-size: .82rem; text-align: center; padding: 1.5rem; line-height: 1.7; }
+.credit { display: inline-block; margin-top: .35rem; opacity: .85; }
+.cite { background: var(--bg-softer); border-left: 3px solid var(--accent); border-radius: var(--radius-sm);
+  padding: .7rem .9rem; margin: .6rem 0; font-size: .85rem; color: var(--ink-soft); }
+.cite b { color: var(--ink); }
+.paired { color: var(--accent); font-size: .72rem; }
+
+/* choix de la source de référence : deux tuiles côte à côte */
+.sources { display: grid; grid-template-columns: 1fr 1fr; gap: .9rem; margin-bottom: 1.1rem; }
+@media (max-width: 640px) { .sources { grid-template-columns: 1fr; } }
+.source { text-align: left; padding: 1rem 1.1rem; border: 2px solid var(--border);
+  border-radius: var(--radius-md); background: var(--bg-softer); cursor: pointer;
+  transition: .15s; display: flex; gap: .8rem; align-items: flex-start; }
+.source:hover:not(:disabled) { border-color: var(--accent); color: inherit; }
+.source[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.source .ico { flex: 0 0 auto; color: var(--accent); margin-top: .15rem; }
+.source .t { font-weight: 700; display: block; margin-bottom: .2rem; }
+.source .d { color: var(--ink-muted); font-size: .84rem; font-weight: 400; display: block; }
+.source .badge { display: inline-block; font-size: .68rem; letter-spacing: .04em; font-weight: 700;
+  border-radius: var(--radius-sm); padding: .05rem .35rem; margin-left: .4rem;
+  background: var(--warn); color: #2a2100; vertical-align: middle; }
+.pane[hidden] { display: none; }
+.dl { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center;
+  padding: .55rem .7rem; border: 1px solid var(--border); border-radius: var(--radius-md);
+  margin-bottom: .45rem; background: var(--bg-softer); }
+.dl a { font-weight: 600; text-decoration: none; }
+.dlbtn { padding: .3rem .8rem; font-size: .84rem; font-weight: 600; border-color: var(--accent);
+  color: var(--accent); }
+.dlbtn:hover:not(:disabled) { background: var(--accent); color: #fff; }
+.dlprog { border: 1px solid var(--accent); border-radius: var(--radius-md);
+  padding: .7rem .9rem; margin: .6rem 0 .2rem; background: var(--accent-soft); }
+.dlprog[hidden] { display: none; }
+.okbox { display: flex; gap: .7rem; align-items: flex-start; padding: .8rem 1rem; margin: .7rem 0;
+  border: 1px solid var(--success); border-radius: var(--radius-md);
+  background: var(--bg-success-soft); font-size: .9rem; }
+.okbox[hidden] { display: none; }
+.okbox svg { color: var(--success); flex: 0 0 auto; margin-top: .1rem; }
+.okbox b { color: var(--ink); }
+.okbox span { color: var(--ink-soft); }
+.dlprog-top { display: flex; align-items: center; justify-content: space-between; gap: .8rem;
+  font-size: .88rem; font-weight: 600; }
+.dlprog .bar { margin: .55rem 0 .3rem; background: color-mix(in srgb, currentColor 18%, transparent); }
+#btnCancelDl { padding: .25rem .7rem; font-size: .82rem; }
+/* barre indéterminée tant que le serveur n'a pas envoyé le premier octet */
+.bar > div.waiting { width: 35% !important; animation: slide 1.4s ease-in-out infinite; }
+@keyframes slide { 0% { margin-left: -35%; } 100% { margin-left: 100%; } }
+.dl a:hover { text-decoration: underline; }
+.dl .sz { color: var(--ink-muted); font-size: .84rem; margin-left: auto; font-family: var(--font-mono); }
+.dl .tag { font-size: .68rem; font-weight: 700; letter-spacing: .04em; border-radius: var(--radius-sm);
+  padding: .05rem .35rem; background: var(--accent-soft); color: var(--accent); }
+.step { counter-increment: st; }
+.steps { counter-reset: st; margin: .2rem 0 .9rem; padding-left: 1.1rem; }
+.steps li { margin: .25rem 0; color: var(--ink-soft); font-size: .88rem; }
+</style>
+</head>
+<body>
+
+<div class="beta-bar">
+  <span class="beta-tag">BETA</span>
+  Work in progress — fidelity to the original filter is not guaranteed. Check your results.
+</div>
+
+<header class="app-header">
+  <a class="brand" href="./">
+    <div class="brand-logo">H</div>
+    <div class="brand-text">
+      <span class="brand-title">web-fastq-human-remover</span>
+      <span class="brand-tagline">Remove human (or any) reads, entirely in your browser</span>
+    </div>
+  </a>
+  <nav>
+    <button class="theme-toggle" id="theme" type="button" aria-label="Toggle theme">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+           stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/>
+        <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+    </button>
+  </nav>
+</header>
+
+<main>
+  <h1>Local decontamination</h1>
+  <p class="sub">Remove from a read set everything that belongs to a reference genome — host,
+     contaminant, vector, PhiX. Files never leave your machine.</p>
+
+  <div class="banner banner-info">
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+         stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+    <div><b>100% local — nothing is uploaded.</b> All computation happens in this tab; there is no
+      server. FASTQ files are streamed and never loaded into memory in full, whatever their size.</div>
+  </div>
+
+  <div class="banner banner-warn">
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+         stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/>
+      <path d="M12 9v4M12 17h.01"/></svg>
+    <div><b>Unofficial, independent port.</b> The approach — a Cuckoo filter over canonical spaced
+      seeds — is taken from <a href="https://gitlab.com/rahmannlab/cleanifier" target="_blank" rel="noopener">Cleanifier</a>
+      (MIT licence), <b>with no connection to its authors and without their endorsement</b>. The index
+      is rebuilt locally from your own FASTA rather than loaded from the published human index.
+      For publishable work, run Cleanifier natively.</div>
+  </div>
+
+  <!-- ————————————————— reference ————————————————— -->
+  <div class="card">
+    <h2>1 · Reference</h2>
+
+    <div class="sources">
+      <button type="button" class="source" id="srcIndex" aria-pressed="false">
+        <svg class="ico" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.7 4 3 9 3s9-1.3 9-3V5"/>
+          <path d="M3 12c0 1.7 4 3 9 3s9-1.3 9-3"/></svg>
+        <span>
+          <span class="t">Prebuilt index<span class="badge" style="background:var(--accent);color:#fff">VALIDATED</span></span>
+          <span class="d">Load Cleanifier's published index (<code>.filter</code> + <code>.info</code>). No build
+            step. The native reader agrees with Cleanifier on 60 000/60 000 keys.</span>
+        </span>
+      </button>
+
+      <button type="button" class="source" id="srcRef" aria-pressed="true">
+        <svg class="ico" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+          <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+        <span>
+          <span class="t">Reference genome</span>
+          <span class="d">Drop a FASTA and build the index locally. Sized on your reference —
+            a few MB for PhiX or a bacterium. Validated.</span>
+        </span>
+      </button>
+    </div>
+
+    <!-- ——— volet : index préconstruit ——— -->
+    <div class="pane" id="paneIndex" hidden>
+
+      <p class="note" style="margin-top:0">Downloaded straight into this tab from Zenodo and unpacked
+        on the fly — nothing is written to disk, nothing goes through a proxy. Or drop files you
+        already have further down.</p>
+
+      <div class="dl">
+        <button class="dlbtn" data-archive="cleanifier_ribosomalRNA.tar" data-size="282 MB" data-bytes="295936000">Download</button>
+        <b>Ribosomal RNA</b> <span class="tag">LIGHTEST</span>
+        <span class="sz">282 MB</span>
+      </div>
+      <div class="dl">
+        <button class="dlbtn" data-archive="cleanifier_probabilistic.tar" data-size="6.36 GB" data-bytes="6827745280">Download</button>
+        <b>Human, probabilistic</b> <span class="tag">CUCKOO FILTER</span>
+        <span class="sz">6.36 GB</span>
+      </div>
+      <div class="row" style="margin:.2rem 0 .6rem">
+        <label class="check"><input type="checkbox" id="saveIdx"> Also save to disk while downloading,
+          so it can be re-loaded later without downloading again</label>
+      </div>
+
+      <div class="okbox" id="idxOk" hidden>
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+             stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        <div><b id="idxOkTitle">Index ready</b><br><span id="idxOkDetail"></span></div>
+      </div>
+
+      <div class="dlprog" id="dlProg" hidden>
+        <div class="dlprog-top">
+          <span id="dlName">…</span>
+          <button id="btnCancelDl" class="danger">Cancel</button>
+        </div>
+        <div class="bar"><div id="dlBar"></div></div>
+        <div class="bar-lbl">
+          <span id="dlDetail">starting…</span>
+          <span id="dlEta"></span>
+        </div>
+      </div>
+
+      <p class="note">Zenodo also hosts an <i>exact</i> human index, not listed here: it is a
+        3-way bucketed hash table (<code>.hash</code>) rather than a cuckoo filter
+        (<code>.filter</code>), which this build does not read. It covers the same genome as the
+        probabilistic one above. The human index needs memory64 and ~7 GB of free RAM;
+        the ribosomal one runs anywhere.
+        Data: <a href="https://doi.org/10.5281/zenodo.15639519" target="_blank" rel="noopener">Zenodo</a>.</p>
+
+      <p class="note" style="margin-top:1.2rem"><b>Already have the files?</b> Unpack the archive
+        (<code>tar xf cleanifier_*.tar</code>) and drop the <code>.filter</code> and <code>.info</code> here.</p>
+
+      <div class="drop" id="dropIdx">
+        <b>Drop the index files</b> or click to browse
+        <div class="drop-sub">both <code>*.filter</code> and <code>*.info</code></div>
+      </div>
+      <input type="file" id="fileIdx" accept=".filter,.info" multiple hidden>
+      <div class="chips" id="chipsIdx"></div>
+      <p class="note">The human index needs memory64 and enough free RAM — about 7 GB resident for the
+        probabilistic one. The ribosomal index runs comfortably on any machine.</p>
+      <div class="row">
+        <button id="btnLoadIdx" disabled>Load the dropped files</button>
+        <span class="note" id="idxState" style="margin:0">No index loaded.</span>
+      </div>
+    </div>
+
+    <!-- ——— volet : génome de référence ——— -->
+    <div class="pane" id="paneRef">
+      <div class="drop" id="dropRef">
+        <b>Drop the reference FASTA</b> or click to browse
+        <div class="drop-sub">.fasta / .fa / .fna, optionally .gz — this is what will be <i>removed</i> from your samples</div>
+      </div>
+      <input type="file" id="fileRef" accept=".fa,.fasta,.fna,.gz" multiple hidden>
+      <div class="chips" id="chipsRef"></div>
+
+      <div class="row" style="margin-top:1rem">
+        <label class="lbl">Seed:</label>
+        <select id="seed">
+          <option value="cleanifier" selected>Cleanifier spaced seed (k=29, w=33)</option>
+          <option value="k25">Contiguous k-mer, k=25</option>
+          <option value="k31">Contiguous k-mer, k=31</option>
+        </select>
+        <label class="lbl">Index:</label>
+        <select id="size"><option value="auto" selected>automatic</option></select>
+        <span class="note" id="noteIndex" style="margin:0"></span>
+      </div>
+      <p class="note">Spaced seeds tolerate substitutions better than contiguous k-mers of the same
+        weight: on synthetic reads at 10% divergence, the Cleanifier seed recovered <b>14.6 points</b>
+        more contaminated reads than a contiguous k=29. They cost roughly 3× in throughput.</p>
+
+      <div class="row">
+        <button class="primary" id="btnIndex" disabled>Build index</button>
+        <span class="note" id="indexState" style="margin:0">No index in memory.</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ————————————————— samples ————————————————— -->
+  <div class="card">
+    <h2>2 · Samples</h2>
+    <div class="drop" id="dropFq">
+      <b>Drop your FASTQ files</b> or click to browse
+      <div class="drop-sub">.fastq[.gz] / .fq[.gz] — <code>_1</code>/<code>_2</code> and
+        <code>_R1</code>/<code>_R2</code> pairs are grouped automatically</div>
+    </div>
+    <input type="file" id="fileFq" accept=".fastq,.fq,.gz" multiple hidden>
+    <div class="chips" id="chipsFq"></div>
+
+    <div class="row" style="margin-top:1rem">
+      <label class="lbl">Threshold: <b id="thresholdVal">50 %</b></label>
+      <input type="range" id="threshold" min="1" max="100" value="50">
+    </div>
+    <p class="note" id="thresholdNote"></p>
+    <p class="note">For a pair, the worse mate decides both reads — dropping one without its mate
+      would break mate pairing downstream.</p>
+
+    <div class="row">
+      <label class="lbl">Action:</label>
+      <select id="mode">
+        <option value="remove" selected>Remove matching reads (decontaminate)</option>
+        <option value="extract">Keep only matching reads (extract)</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- ————————————————— output ————————————————— -->
+  <div class="card">
+    <h2>3 · Output folder</h2>
+    <div class="row">
+      <button id="btnDir">Choose folder…</button>
+      <span class="note" id="dirState" style="margin:0">No folder selected.</span>
+    </div>
+    <p class="note">Files are written straight to disk as they are produced. This avoids browser
+      storage, whose quota would not hold a large FASTQ.</p>
+
+    <div class="row">
+      <label class="check"><input type="checkbox" id="gzipOut"> Re-compress output as <code>.gz</code></label>
+    </div>
+    <p class="note">Compression happens in the same stream, so nothing extra is held in memory.
+      It costs some throughput but roughly a third of the disk space.</p>
+
+    <div class="row" style="margin-top:1rem">
+      <button class="primary" id="btnRun" disabled>Run</button>
+      <button id="btnCancel" disabled>Cancel</button>
+      <button id="btnClear">Clear all</button>
+    </div>
+
+    <div class="bar"><div id="prog"></div></div>
+    <div class="bar-lbl"><span id="progTxt">idle</span><span id="progPct"></span></div>
+  </div>
+
+  <!-- ————————————————— results ————————————————— -->
+  <div class="card" id="cardRes" style="display:none">
+    <h2>Results</h2>
+    <table id="tblRes">
+      <thead><tr><th>Sample</th><th>Reads</th><th>Removed</th><th>%</th><th>Time</th><th>Rate</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2>Log</h2>
+    <div class="log" id="log">ready.</div>
+  </div>
+
+  <!-- ————————————————— citations ————————————————— -->
+  <div class="card">
+    <h2>Please cite</h2>
+    <p class="note" style="margin-top:0">This tool reimplements the method described in the
+      following work. If you use it, please cite:</p>
+    <div class="cite">
+      <b>Zentgraf, J., Schmitz, J.E., Rahmann, S.</b> Cleanifier: Contamination removal from
+      microbial sequences using spaced seeds of a human pangenome index.
+      <i>Bioinformatics</i> (2025).
+      <a href="https://doi.org/10.1093/bioinformatics/btaf632" target="_blank" rel="noopener">doi.org/10.1093/bioinformatics/btaf632</a>
+    </div>
+    <p class="note">If you use their pre-built index:</p>
+    <div class="cite">
+      <b>Schmitz, J.E., Zentgraf, J., &amp; Rahmann, S.</b> (2025).
+      Human index for Cleanifier (0.1.0). <i>Zenodo</i>.
+      <a href="https://doi.org/10.5281/zenodo.15639519" target="_blank" rel="noopener">doi.org/10.5281/zenodo.15639519</a>
+    </div>
+  </div>
+
+  <footer>
+    Runs entirely on your machine · Rust core compiled to WebAssembly (memory64) ·
+    method after <a href="https://gitlab.com/rahmannlab/cleanifier" target="_blank" rel="noopener">Cleanifier</a> (MIT) · GPL-3.0
+    <br>
+    <span class="credit">Created using Claude Opus 5.0, prompted by G. Gautreau — MaIAGE unit
+      (UR 1404, Mathématiques et Informatique Appliquées du Génome à l'Environnement), INRAE.</span>
+  </footer>
+</main>
+
+<script src="app.js"></script>
+</body>
+</html>
