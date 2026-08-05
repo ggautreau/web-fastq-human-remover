@@ -110,7 +110,8 @@ td.pct { color: var(--accent); font-weight: 600; }
   max-height: 12rem; overflow-y: auto; white-space: pre-wrap; word-break: break-word; }
 .log .err { color: var(--danger); }
 .log .ok { color: var(--success); }
-footer { color: var(--ink-muted); font-size: .82rem; text-align: center; padding: 1.5rem; }
+footer { color: var(--ink-muted); font-size: .82rem; text-align: center; padding: 1.5rem; line-height: 1.7; }
+.credit { display: inline-block; margin-top: .35rem; opacity: .85; }
 .cite { background: var(--bg-softer); border-left: 3px solid var(--accent); border-radius: var(--radius-sm);
   padding: .7rem .9rem; margin: .6rem 0; font-size: .85rem; color: var(--ink-soft); }
 .cite b { color: var(--ink); }
@@ -205,8 +206,9 @@ footer { color: var(--ink-muted); font-size: .82rem; text-align: center; padding
          stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/>
       <path d="M12 9v4M12 17h.01"/></svg>
     <div><b>Unofficial, independent port.</b> The approach — a Cuckoo filter over canonical spaced
-      seeds — is taken from <a href="https://gitlab.com/rahmannlab/cleanifier" target="_blank" rel="noopener">Cleanifier</a>
-      (MIT licence), <b>with no connection to its authors and without their endorsement</b>. The index
+      seeds — is taken from <a href="https://gitlab.com/rahmannlab/cleanifier" target="_blank" rel="noopener">Cleanifier</a>,
+      released under the MIT licence by Zentgraf, Schmitz &amp; Rahmann (Saarland University).
+      This port has <b>no connection to them and carries no endorsement from them</b>. The index
       is rebuilt locally from your own FASTA rather than loaded from the published human index.
       For publishable work, run Cleanifier natively.</div>
   </div>
@@ -422,7 +424,12 @@ footer { color: var(--ink-muted); font-size: .82rem; text-align: center; padding
 
   <footer>
     Runs entirely on your machine · Rust core compiled to WebAssembly (memory64) ·
-    method after <a href="https://gitlab.com/rahmannlab/cleanifier" target="_blank" rel="noopener">Cleanifier</a> (MIT)
+    method after <a href="https://gitlab.com/rahmannlab/cleanifier" target="_blank" rel="noopener">Cleanifier</a>,
+    MIT-licensed · this port GPL-3.0
+    <br>
+    <span class="credit">Created using Claude Opus 5.0, prompted by G. Gautreau —
+      <a href="https://maiage.inrae.fr/" target="_blank" rel="noopener">MaIAGE unit</a>
+      (UR 1404, Mathématiques et Informatique Appliquées du Génome à l'Environnement), INRAE.</span>
   </footer>
 </main>
 

@@ -151,5 +151,5 @@ retained in [NOTICE](NOTICE) as it requires.
 
 ---
 
-Created using Claude Opus 5.0, prompted by G. Gautreau — MaIAGE unit (UR 1404, Mathématiques et
-Informatique Appliquées du Génome à l'Environnement), INRAE.
+Created using Claude Opus 5.0, prompted by G. Gautreau — [MaIAGE unit](https://maiage.inrae.fr/)
+(UR 1404, Mathématiques et Informatique Appliquées du Génome à l'Environnement), INRAE.
