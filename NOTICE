@@ -16,7 +16,7 @@ Cleanifier:
 
     https://gitlab.com/rahmannlab/cleanifier
 
-    MIT License
+    Expat licence (as distributed, headed "MIT License")
     Copyright (c) 2019-2025 Jens Zentgraf & Johanna Elena Schmitz & Sven Rahmann
 
     Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -37,9 +37,13 @@ Cleanifier:
     OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
     SOFTWARE.
 
-The MIT licence permits this relicensing under GPL-3.0; the notice above is
-retained as it requires. This project is not affiliated with, endorsed by, or
-supported by the Cleanifier authors.
+The Expat licence is GPL-compatible, so this work may be distributed under
+GPL-3.0; the notice above is reproduced verbatim, as it requires. This project
+is not affiliated with, endorsed by, or supported by the Cleanifier authors.
+
+("Expat" is the canonical name of the licence Cleanifier ships under the
+heading "MIT License". The FSF discourages "MIT License" as ambiguous, MIT
+having published several different licences.)
 
 If you use this software, please cite:
 

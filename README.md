@@ -18,10 +18,11 @@ Rust core compiled to WebAssembly (memory64): a Cuckoo filter over canonical spa
 Cleanifier's published indexes directly, or builds one locally from a FASTA you supply.
 
 > **Unofficial, independent port.** The method comes from
-> [Cleanifier](https://gitlab.com/rahmannlab/cleanifier), released under the MIT licence by Jens
-> Zentgraf, Johanna Elena Schmitz and Sven Rahmann (Algorithmic Bioinformatics, Saarland
-> University). This port has **no connection to them and carries no endorsement from them**.
-> For publishable work, run Cleanifier natively.
+> [Cleanifier](https://gitlab.com/rahmannlab/cleanifier), released under the **Expat licence**
+> (the licence commonly called "MIT" — the FSF discourages that name as ambiguous, since MIT has
+> published several) by Jens Zentgraf, Johanna Elena Schmitz and Sven Rahmann, Algorithmic
+> Bioinformatics, Saarland University. This port has **no connection to them and carries no
+> endorsement from them**. For publishable work, run Cleanifier natively.
 
 ## Please cite
 
@@ -156,9 +157,13 @@ human index, which is dominated by random-access TLB misses rather than by the l
 **GNU General Public License v3.0** — see [LICENSE](LICENSE).
 
 The method derives from [Cleanifier](https://gitlab.com/rahmannlab/cleanifier), released under the
-**MIT licence**, copyright 2019-2025 Jens Zentgraf, Johanna Elena Schmitz and Sven Rahmann
-(Saarland University). The MIT licence permits this relicensing under GPL-3.0; its notice is
-retained in [NOTICE](NOTICE) as it requires.
+**Expat licence** (commonly called MIT), copyright 2019-2025 Jens Zentgraf, Johanna Elena Schmitz
+and Sven Rahmann, Saarland University.
+
+Expat is [GPL-compatible](https://www.gnu.org/licenses/license-list.html#Expat) — the FSF lists it
+as *"a lax, permissive non-copyleft free software license, compatible with the GNU GPL"* — so this
+work may be distributed under GPL-3.0. Its one obligation is that the copyright notice be kept:
+[NOTICE](NOTICE) reproduces it verbatim.
 
 ---
 
