@@ -1,11 +1,16 @@
 # web-fastq-human-remover
 
-Split a FASTQ against a reference genome — **entirely in your browser**. No server, no upload,
+Remove human reads from sequencing data — **entirely in your browser**. No server, no upload,
 no install.
 
-Each sample yields **two files**: the reads that match the reference, and those that do not.
-Which side is contamination and which is signal is your call, not the tool's — so it writes both
-and lets you decide.
+Host DNA contaminates most metagenomes. Archives (ENA, SRA) require it removed before submission,
+and ethics and GDPR rules often require it removed before the data is shared at all. Sending human
+DNA to a remote service to have it stripped would defeat the point, so nothing here leaves your
+machine: only the reference index comes off the network.
+
+Works with any reference, not just human — host genome, PhiX, vector, rRNA, a contaminating strain.
+Each sample yields **two files**: `.unmatched` is your cleaned sample, `.matched` is what was taken
+out, so you can check the tool rather than trust it.
 
 **→ [ggautreau.github.io/web-fastq-human-remover](https://ggautreau.github.io/web-fastq-human-remover/)**
 

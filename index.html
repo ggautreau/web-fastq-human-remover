@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>web-fastq-human-remover · Split reads against a reference, in your browser</title>
+<title>web-fastq-human-remover · Remove human reads from FASTQ, in your browser</title>
 <style>
 :root {
   --bg: #0f1518; --bg-card: #1a2226; --bg-soft: #141a1d; --bg-softer: #10161a;
@@ -51,6 +51,13 @@ main { max-width: 62rem; margin: 0 auto; padding: 1.8rem 1.5rem 4rem; }
 h1 { font-size: 1.55rem; margin: 0 0 .3rem; }
 .sub { color: var(--ink-muted); margin: 0 0 1.4rem; }
 
+.what { display: grid; grid-template-columns: repeat(3, 1fr); gap: .9rem; margin: 1.2rem 0 1.4rem; }
+@media (max-width: 760px) { .what { grid-template-columns: 1fr; } }
+.what > div { border: 1px solid var(--border); border-radius: var(--radius-md);
+  padding: .85rem 1rem; background: var(--bg-softer); }
+.what b { display: block; color: var(--accent); font-size: .82rem; letter-spacing: .02em;
+  margin-bottom: .35rem; }
+.what span { color: var(--ink-soft); font-size: .87rem; line-height: 1.5; }
 .banner { display: flex; gap: .7rem; padding: .85rem 1rem; border-radius: var(--radius-md);
   margin-bottom: 1rem; font-size: .9rem; }
 .banner svg { flex: 0 0 auto; margin-top: .15rem; }
@@ -177,7 +184,7 @@ footer { color: var(--ink-muted); font-size: .82rem; text-align: center; padding
     <div class="brand-logo">H</div>
     <div class="brand-text">
       <span class="brand-title">web-fastq-human-remover</span>
-      <span class="brand-tagline">Split reads against a reference genome, entirely in your browser</span>
+      <span class="brand-tagline">Remove human (or any reference) reads — entirely in your browser</span>
     </div>
   </a>
   <nav>
@@ -190,15 +197,34 @@ footer { color: var(--ink-muted); font-size: .82rem; text-align: center; padding
 </header>
 
 <main>
-  <h1>Split reads against a reference</h1>
-  <p class="sub">Separate the reads that belong to a reference genome from those that do not —
-     host, vector, PhiX, ribosomal RNA, any FASTA. Files never leave your machine.</p>
+  <h1>Remove human reads from sequencing data</h1>
+  <p class="sub">Host DNA contaminates most metagenomes. Archives require it gone before
+     submission; ethics and GDPR rules often require it gone before sharing at all.</p>
+
+  <div class="what">
+    <div>
+      <b>1 · Choose a reference</b>
+      <span>Cleanifier's human index, one click. Or your own FASTA — host genome, PhiX, vector,
+        rRNA, a contaminating strain.</span>
+    </div>
+    <div>
+      <b>2 · Drop your FASTQ</b>
+      <span>Reads are matched against the index by spaced seeds. Mates are decided together, so
+        pairs stay intact.</span>
+    </div>
+    <div>
+      <b>3 · Two files out</b>
+      <span><code>.unmatched</code> is your cleaned sample. <code>.matched</code> is what was
+        removed — so you can check the tool, not trust it.</span>
+    </div>
+  </div>
 
   <div class="banner banner-info">
     <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
          stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-    <div><b>100% local — nothing is uploaded.</b> All computation happens in this tab; there is no
-      server. FASTQ files are streamed and never loaded into memory in full, whatever their size.</div>
+    <div><b>No server. Nothing uploaded.</b> Sending human DNA away to have it removed would
+      defeat the point. Only the reference index comes off the network; your reads are streamed
+      from disk and never leave the tab.</div>
   </div>
 
   <div class="banner banner-warn">
@@ -208,8 +234,8 @@ footer { color: var(--ink-muted); font-size: .82rem; text-align: center; padding
     <div><b>Unofficial, independent port.</b> The approach — a Cuckoo filter over canonical spaced
       seeds — is taken from <a href="https://gitlab.com/rahmannlab/cleanifier" target="_blank" rel="noopener">Cleanifier</a>,
       released under the MIT licence by Zentgraf, Schmitz &amp; Rahmann (Saarland University).
-      This port has <b>no connection to them and carries no endorsement from them</b>. The index
-      is rebuilt locally from your own FASTA rather than loaded from the published human index.
+      This port has <b>no connection to them and carries no endorsement from them</b>.
+        It reads their published index directly; N handling differs slightly.
       For publishable work, run Cleanifier natively.</div>
   </div>
 
@@ -329,7 +355,7 @@ footer { color: var(--ink-muted); font-size: .82rem; text-align: center; padding
       </div>
       <p class="note">Spaced seeds tolerate substitutions better than contiguous k-mers of the same
         weight: on synthetic reads at 10% divergence, the Cleanifier seed recovered <b>14.6 points</b>
-        more contaminated reads than a contiguous k=29. They cost roughly 3× in throughput.</p>
+        more matching reads than a contiguous k=29. They cost roughly 3× in throughput.</p>
 
       <div class="row">
         <button class="primary" id="btnIndex" disabled>Build index</button>
