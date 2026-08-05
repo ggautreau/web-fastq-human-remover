@@ -9,8 +9,10 @@ Rust core compiled to WebAssembly (memory64): a Cuckoo filter over canonical spa
 Cleanifier's published indexes directly, or builds one locally from a FASTA you supply.
 
 > **Unofficial, independent port.** The method comes from
-> [Cleanifier](https://gitlab.com/rahmannlab/cleanifier) (MIT), **with no connection to its authors
-> and without their endorsement**. For publishable work, run Cleanifier natively.
+> [Cleanifier](https://gitlab.com/rahmannlab/cleanifier), released under the MIT licence by Jens
+> Zentgraf, Johanna Elena Schmitz and Sven Rahmann (Algorithmic Bioinformatics, Saarland
+> University). This port has **no connection to them and carries no endorsement from them**.
+> For publishable work, run Cleanifier natively.
 
 ## Please cite
 
@@ -126,9 +128,10 @@ human index, which is dominated by random-access TLB misses rather than by the l
 
 **GNU General Public License v3.0** — see [LICENSE](LICENSE).
 
-The method derives from [Cleanifier](https://gitlab.com/rahmannlab/cleanifier), MIT, copyright
-2019-2025 Jens Zentgraf, Johanna Elena Schmitz and Sven Rahmann. The MIT licence permits this
-relicensing under GPL-3.0; its notice is retained in [NOTICE](NOTICE) as it requires.
+The method derives from [Cleanifier](https://gitlab.com/rahmannlab/cleanifier), released under the
+**MIT licence**, copyright 2019-2025 Jens Zentgraf, Johanna Elena Schmitz and Sven Rahmann
+(Saarland University). The MIT licence permits this relicensing under GPL-3.0; its notice is
+retained in [NOTICE](NOTICE) as it requires.
 
 ---
 
