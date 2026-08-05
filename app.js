@@ -220,6 +220,15 @@ $('#btnLoadIdx').onclick = () => {
   const filter = state.idxFiles.find(f => /\.filter$/i.test(f.name));
   const info = state.idxFiles.find(f => /\.info$/i.test(f.name));
   busy(true);
+  // Same visible progress as a download: reading 6 GB off disk takes tens of
+  // seconds, and without a bar it reads as "the button does nothing".
+  state.dlStart = performance.now();
+  $('#dlProg').hidden = false;
+  $('#dlName').textContent = `${filter.name} · ${human(filter.size)}`;
+  $('#dlDetail').textContent = 'reading from disk…';
+  $('#dlEta').textContent = '';
+  $('#dlBar').style.width = '0%';
+  $('#dlBar').classList.add('waiting');
   progress(0, 'reading index…');
   log(`loading prebuilt index: ${filter.name} (${human(filter.size)})`);
   if (state.worker) { state.worker.terminate(); state.worker = null; }

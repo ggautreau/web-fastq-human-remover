@@ -283,15 +283,20 @@ async function loadNative({ wasmUrl, filter, info }) {
 
   const t0 = performance.now();
   const reader = filter.stream().getReader();
-  let off = 0;
+  let off = 0, lastPost = 0;
   for (;;) {
     if (cancelled) { await reader.cancel(); post('cancelled', {}); return; }
     const { done, value } = await reader.read();
     if (done) break;
     view.set(value, IDX_BASE + off);
     off += value.length;
-    post('progress', { phase: 'index', fraction: off / filter.size,
-                       detail: `${human(off)} of ${human(filter.size)}` });
+    const now = performance.now();
+    if (now - lastPost > 80) {
+      lastPost = now;
+      const mbps = off / 1048576 / ((now - t0) / 1000);
+      post('progress', { phase: 'index', fraction: off / filter.size,
+                         detail: `${human(off)} of ${human(filter.size)} · ${mbps.toFixed(0)} MB/s` });
+    }
   }
   const seconds = (performance.now() - t0) / 1000;
 
