@@ -119,12 +119,18 @@ human index, which is dominated by random-access TLB misses rather than by the l
   hash uses the *even* one.
 - **Never hardcode the wasm heap base**: `wasm-ld` lays stack and static data at the bottom of
   linear memory, and `__heap_base` is the only reliable answer.
-- Everything runs in a worker; FASTQ files stream through `DecompressionStream` and are never
-  materialised.
+- Everything runs in a worker; FASTQ files stream through and are never materialised.
+- **`DecompressionStream('gzip')` decodes only the FIRST gzip member** and then throws *"Junk found
+  after end of compressed data"*. Sequencing FASTQ is very often multi-member — every bgzip/BGZF
+  file is, and so is any concatenated `.gz`. `gunzip.js` walks the members instead: BGZF block
+  lengths come free from the `BC` extra subfield, plain concatenations are found by scanning for a
+  validated gzip header. Measured at ~30 MB/s on BGZF against ~210 MB/s for a single member — the
+  cost is the per-member stream setup.
 
 ## Limitations
 
 - Reads longer than 32 MiB are not handled (irrelevant for Illumina).
+- Multi-member gzip decodes at ~30 MB/s, roughly 7× slower than a single member.
 - Cleanifier's exact `.hash` index is not supported.
 - Build depends on nightly and one unstable feature (`simd_wasm64`).
 - The locally-built index path is validated against synthetic ground truth, not the Cleanifier binary.

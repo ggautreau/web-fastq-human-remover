@@ -10,6 +10,7 @@
 // Method derived from Cleanifier (MIT-licensed) — see NOTICE for attribution.
 
 import { readInfo } from './pickle.js';
+import { gunzipStream } from './gunzip.js';
 
 // worker.js — the read-splitting pipeline. All heavy work happens here;
 // the main thread only drives the UI.
@@ -313,9 +314,12 @@ async function loadNative({ wasmUrl, filter, info }) {
 
 // ————————————————————————— building the index —————————————————————————
 
+// Gzipped input goes through the multi-member reader: DecompressionStream alone
+// stops after the first member and throws "Junk found after end of compressed
+// data" on any bgzip/BGZF file or concatenated .gz — which is most sequencing
+// FASTQ in practice.
 function decodedStream(file) {
-  let s = file.stream();
-  if (/\.(gz|bgz)$/i.test(file.name)) s = s.pipeThrough(new DecompressionStream('gzip'));
+  const s = /\.(gz|bgz|bgzf)$/i.test(file.name) ? gunzipStream(file) : file.stream();
   return s.getReader();
 }
 
