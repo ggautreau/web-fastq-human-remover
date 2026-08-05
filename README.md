@@ -130,6 +130,12 @@ human index, which is dominated by random-access TLB misses rather than by the l
   second member, so restarting would silently duplicate it.
 - **Scan once, not per member.** Re-scanning from each member start is quadratic: 240 members over
   409 MB meant re-reading ~49 GB.
+- **Progress is measured on the input, not the output.** Comparing decompressed bytes to a
+  compressed file size sends the bar past 100 % by the compression ratio — up to 2700 % on a
+  27×-compressible file. `gunzipStream` reports the position in the compressed stream instead.
+- **Mate markers are not always next to the extension.** `..._1.clean.fastq.gz` is a normal name;
+  anchoring `_1`/`_R1` to the end of the stem split every such pair into two separate samples.
+  The last marker delimited by `.`, `_` or end-of-string is used instead.
 
 ## Limitations
 

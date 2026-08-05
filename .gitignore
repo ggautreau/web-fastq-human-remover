@@ -8,3 +8,10 @@ target-*/
 !testdata/ref.fasta
 !testdata/samples/
 !testdata/samples/*.fastq.gz
+
+# sorties de traitement et fichiers temporaires de l'API File System Access
+*.crswap
+*.matched.fastq
+*.unmatched.fastq
+*.matched.fastq.gz
+*.unmatched.fastq.gz

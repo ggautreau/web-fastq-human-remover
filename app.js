@@ -237,26 +237,38 @@ $('#btnLoadIdx').onclick = () => {
 
 // ————————————————————— samples and mate pairing —————————————————————
 
-// Groups R1/R2. The _1/_2 and _R1/_R2 patterns cover the vast majority of
-// sequencer output; anything else is treated as single-end.
+// Groups R1/R2 mates.
+//
+// The mate marker is not always right before the extension: real files carry
+// suffixes after it, e.g. V350342880_L03_UDB-193_1.clean.fastq.gz. Anchoring on
+// the end of the stem missed those and treated each mate as its own sample.
+// So: take the LAST _1/_2/_R1/_R2 delimited by a dot, an underscore or the end,
+// and build the key by removing it.
+const MATE_RE = /_(R?)([12])(?=[._]|$)/gi;
+
+function mateInfo(name) {
+  const stem = name.replace(/\.(f(ast)?q)(\.gz|\.bgz|\.bgzf)?$/i, '');
+  let last = null;
+  for (const m of stem.matchAll(MATE_RE)) last = m;
+  if (!last) return { mate: 0, key: stem };
+  return { mate: +last[2], key: stem.slice(0, last.index) + stem.slice(last.index + last[0].length) };
+}
+
 function pairUp(files) {
   const left = [...files];
   const groups = [];
-  const key = n => n.replace(/\.(f(ast)?q)(\.gz|\.bgz)?$/i, '').replace(/_(R?)[12](_001)?$/i, '');
-  const mate = n => {
-    const m = n.replace(/\.(f(ast)?q)(\.gz|\.bgz)?$/i, '').match(/_R?([12])(_001)?$/i);
-    return m ? +m[1] : 0;
-  };
   while (left.length) {
     const f = left.shift();
-    const n = mate(f.name);
-    if (n === 0) { groups.push({ name: f.name, r1: f, r2: null }); continue; }
-    const k = key(f.name);
-    const j = left.findIndex(g => key(g.name) === k && mate(g.name) === (n === 1 ? 2 : 1));
+    const { mate, key } = mateInfo(f.name);
+    if (mate === 0) { groups.push({ name: f.name, r1: f, r2: null }); continue; }
+    const j = left.findIndex(g => {
+      const o = mateInfo(g.name);
+      return o.key === key && o.mate === (mate === 1 ? 2 : 1);
+    });
     if (j >= 0) {
       const other = left.splice(j, 1)[0];
-      const [r1, r2] = n === 1 ? [f, other] : [other, f];
-      groups.push({ name: k, r1, r2 });
+      const [r1, r2] = mate === 1 ? [f, other] : [other, f];
+      groups.push({ name: key, r1, r2 });
     } else groups.push({ name: f.name, r1: f, r2: null });
   }
   return groups;

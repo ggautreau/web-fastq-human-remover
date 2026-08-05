@@ -56,6 +56,14 @@ function concat(a, b) {
   return c;
 }
 
+/** Passes bytes through untouched while reporting how many have gone by. */
+function counting(stream, onBytes) {
+  let n = 0;
+  return stream.pipeThrough(new TransformStream({
+    transform(chunk, ctrl) { n += chunk.length; onBytes(n); ctrl.enqueue(chunk); }
+  }));
+}
+
 async function inflateMember(blob) {
   return new Uint8Array(await new Response(
     blob.stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer());
@@ -90,8 +98,15 @@ async function memberStarts(file, onProgress) {
   return starts;
 }
 
-/** Decompressed bytes of a gzip file, whatever its member layout. */
-export function gunzipStream(file, onScan) {
+/**
+ * Decompressed bytes of a gzip file, whatever its member layout.
+ *
+ * `onProgress(compressedBytesRead, fileSize)` reports position in the *input*.
+ * Progress must be measured there, not on the output: comparing decompressed
+ * bytes to a compressed file size sends the bar past 100 % by the compression
+ * ratio.
+ */
+export function gunzipStream(file, onProgress) {
   return new ReadableStream({
     async start(controller) {
       try {
@@ -104,6 +119,7 @@ export function gunzipStream(file, onScan) {
             const part = await inflateMember(file.slice(pos, pos + bsize));
             if (part.length) controller.enqueue(part);
             pos += bsize;
+            if (onProgress) onProgress(pos, file.size);
           }
           controller.close();
           return;
@@ -114,11 +130,13 @@ export function gunzipStream(file, onScan) {
         // Trying a single DecompressionStream first was tempting, but it emits
         // bytes before it discovers the second member; restarting would then
         // duplicate them. So the member map is built before anything goes out.
-        const starts = await memberStarts(file, onScan);
+        const starts = await memberStarts(file, null);
 
         // one member: stream it, no slicing, no extra cost
         if (starts.length === 2) {
-          const rd = file.stream().pipeThrough(new DecompressionStream('gzip')).getReader();
+          const src = onProgress ? counting(file.stream(), n => onProgress(n, file.size))
+                                 : file.stream();
+          const rd = src.pipeThrough(new DecompressionStream('gzip')).getReader();
           for (;;) {
             const { done, value } = await rd.read();
             if (done) break;
@@ -142,6 +160,7 @@ export function gunzipStream(file, onScan) {
           if (part === null) throw new Error(`cannot inflate member at byte ${starts[i]}`);
           if (part.length) controller.enqueue(part);
           i = next;
+          if (onProgress) onProgress(starts[i], file.size);
         }
         controller.close();
       } catch (e) {

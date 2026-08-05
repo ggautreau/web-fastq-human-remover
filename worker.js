@@ -318,26 +318,36 @@ async function loadNative({ wasmUrl, filter, info }) {
 // stops after the first member and throws "Junk found after end of compressed
 // data" on any bgzip/BGZF file or concatenated .gz — which is most sequencing
 // FASTQ in practice.
-function decodedStream(file) {
-  const s = /\.(gz|bgz|bgzf)$/i.test(file.name) ? gunzipStream(file) : file.stream();
-  return s.getReader();
+// `onInput(bytes)` reports progress through the INPUT file. For gzip that is
+// the compressed position, which is what the file size can be compared against;
+// counting decompressed bytes instead pushed the bar past 100 %.
+function decodedStream(file, onInput) {
+  if (/\.(gz|bgz|bgzf)$/i.test(file.name)) {
+    return gunzipStream(file, onInput ? n => onInput(n) : null).getReader();
+  }
+  if (!onInput) return file.stream().getReader();
+  let n = 0;
+  return file.stream().pipeThrough(new TransformStream({
+    transform(chunk, ctrl) { n += chunk.length; onInput(n); ctrl.enqueue(chunk); }
+  })).getReader();
 }
 
 async function buildIndex({ files }) {
   cancelled = false;
-  let readTotal = 0;
+  let readTotal = 0, readSoFar = 0;
   const totalSize = files.reduce((s, f) => s + f.size, 0);
   const t0 = performance.now();
 
   for (const f of files) {
-    const reader = decodedStream(f);
+    let inputRead = 0;
+    const reader = decodedStream(f, n => { inputRead = n; });
     let carry = 0;   // bytes carried over at the head of the buffer
 
     for (;;) {
       if (cancelled) { await reader.cancel(); post('cancelled', {}); return; }
       const { done, value } = await reader.read();
       if (done) break;
-      readTotal += value.length;
+      readTotal = readSoFar + inputRead;
 
       let pos = 0;
       while (pos < value.length) {
@@ -352,11 +362,12 @@ async function buildIndex({ files }) {
       }
       post('progress', {
         phase: 'index',
-        fraction: totalSize ? readTotal / totalSize : 0,
+        fraction: totalSize ? Math.min(1, readTotal / totalSize) : 0,
         detail: `${human(readTotal)} read`
       });
     }
     if (carry > 0) wasm.index_fasta_block(BigInt(IO_BASE), BigInt(carry), 1);
+    readSoFar += f.size;
   }
 
   indexReady = true;
@@ -428,7 +439,8 @@ async function openOutput(dir, name, gzip) {
 async function splitSingle(sample, threshold, dir, gzip) {
   const hit = await openOutput(dir, outputName(sample.r1.name, true), gzip);
   const miss = await openOutput(dir, outputName(sample.r1.name, false), gzip);
-  const reader = decodedStream(sample.r1);
+  let inputRead = 0;
+  const reader = decodedStream(sample.r1, n => { inputRead = n; });
   const OUT_HIT = IO_BASE + IN_CAP;
   const OUT_MISS = OUT_HIT + OUT_CAP;
   let carry = 0, read = 0;
@@ -459,7 +471,7 @@ async function splitSingle(sample, threshold, dir, gzip) {
       }
       post('progress', {
         phase: 'filter', name: sample.name,
-        fraction: sample.r1.size ? read / sample.r1.size : 0,
+        fraction: sample.r1.size ? Math.min(1, inputRead / sample.r1.size) : 0,
         detail: `${Number(wasm.stat(0)).toLocaleString('en-US')} reads`
       });
     }
@@ -482,8 +494,9 @@ async function splitPair(sample, threshold, dir, gzip) {
   const m1 = await openOutput(dir, outputName(sample.r1.name, false), gzip);
   const m2 = await openOutput(dir, outputName(sample.r2.name, false), gzip);
   const sinks = [h1, h2, m1, m2];
-  const it1 = records(sample.r1);
-  const it2 = records(sample.r2);
+  let in1 = 0, in2 = 0;
+  const it1 = records(sample.r1, n => { in1 = n; });
+  const it2 = records(sample.r2, n => { in2 = n; });
   const SCRATCH = IO_BASE + IN_CAP + 2 * OUT_CAP - (1 << 20);
   let n = 0, matched = 0, read = 0;
   const totalSize = sample.r1.size + sample.r2.size;
@@ -508,7 +521,7 @@ async function splitPair(sample, threshold, dir, gzip) {
       if ((n & 0x3fff) === 0) {
         post('progress', {
           phase: 'filter', name: sample.name,
-          fraction: totalSize ? read / totalSize : 0,
+          fraction: totalSize ? Math.min(1, (in1 + in2) / totalSize) : 0,
           detail: `${n.toLocaleString('en-US')} pairs`
         });
       }
@@ -524,8 +537,8 @@ function verdict(seq, scratch, threshold) {
 }
 
 // FASTQ records off a stream, never materialising the file.
-async function* records(file) {
-  const reader = decodedStream(file);
+async function* records(file, onInput) {
+  const reader = decodedStream(file, onInput);
   let buf = new Uint8Array(0);
   for (;;) {
     const { done, value } = await reader.read();
