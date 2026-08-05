@@ -1,7 +1,11 @@
 # web-fastq-human-remover
 
-Remove human reads — or any reference genome's reads — from a FASTQ, **entirely in your browser**.
-No server, no upload, no install.
+Split a FASTQ against a reference genome — **entirely in your browser**. No server, no upload,
+no install.
+
+Each sample yields **two files**: the reads that match the reference, and those that do not.
+Which side is contamination and which is signal is your call, not the tool's — so it writes both
+and lets you decide.
 
 **→ [ggautreau.github.io/web-fastq-human-remover](https://ggautreau.github.io/web-fastq-human-remover/)**
 
@@ -49,7 +53,7 @@ or a bacterium, gigabytes only for a whole human genome.
 Against the published human index on **HG002** (GIAB, the sample from the paper's supplement),
 100 000 Illumina reads of 125 bp, threshold 0.5:
 
-| | Reads removed |
+| | Reads matching |
 |---|---|
 | Cleanifier `--sensitive` | 93 642 (93.64 %) |
 | **This port** | **93 637 (93.64 %)** |
@@ -67,7 +71,7 @@ exhaustive `classify_issh`. This port implements the latter, so compare against 
 Ready to use in [`testdata/samples/`](testdata/samples/) — four gzipped paired-end samples, 1.3 MB
 total. Drop a pair into the app directly. `testdata/gen_testsets.py` regenerates them. Measured:
 
-| Sample | Human index | rRNA index |
+| Sample | matched, human index | matched, rRNA index |
 |---|---|---|
 | `with_human` | **94.1 %** | 0.3 % |
 | `without_human` | **0.0 %** | 50.0 % |

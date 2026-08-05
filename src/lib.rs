@@ -43,8 +43,8 @@ static mut SEED_MASK_INT: u64 = 0;       // significant positions as a bit mask
 static mut COVER: [u64; 16] = [0; 16];
 static mut RNG: u64 = 0x2545_f491_4f6c_dd1d;
 
-/// 0 reads seen · 1 reads dropped · 2 bases seen · 3 k-mers queried
-/// 4 k-mers found · 5 insertions · 6 failed insertions · 7 occupied slots
+/// 0 reads seen · 1 reads matching the reference · 2 bases seen · 3 seeds queried
+/// 4 seeds found · 5 insertions · 6 failed insertions · 7 occupied slots
 static mut STATS: [u64; 8] = [0; 8];
 
 const MAX_KICKS: u32 = 500;
@@ -342,30 +342,30 @@ pub unsafe extern "C" fn index_fasta_block(ptr: u64, len: u64, last: u32) -> u64
 
 // ———————————————————— filtering a FASTQ block ————————————————————
 
-/// Filter a block of complete FASTQ records.
+/// Splits a block of complete FASTQ records in **one pass**: reads that match
+/// the reference go to `out_hit`, the rest to `out_miss`. Both sides are always
+/// produced — deciding which one is contamination is the user's job, not ours.
 ///
-/// Kept records are written to `out_ptr`. A read is dropped as soon as the
-/// fraction of its k-mers present in the index reaches `threshold_permille`.
-/// `keep_matching` inverts the decision (extract matches instead of removing them).
+/// One pass rather than two: each read's seeds are computed once and the
+/// statistics are counted once.
 ///
-/// Returns the number of input bytes consumed; the amount written is read back
-/// through `last_out_len()`. The caller carries unconsumed bytes to the next block.
+/// Returns input bytes consumed; the two output lengths come back through
+/// `last_out_len()` (matching) and `last_out2_len()` (non-matching).
 #[no_mangle]
-pub unsafe extern "C" fn filter_fastq_block(
+pub unsafe extern "C" fn split_fastq_block(
     ptr: u64, len: u64,
-    out_ptr: u64, out_cap: u64,
+    out_hit: u64, cap_hit: u64,
+    out_miss: u64, cap_miss: u64,
     threshold_permille: u32,
-    keep_matching: u32,
     last: u32,
 ) -> u64 {
     let data = ptr as *const u8;
-    let out = out_ptr as *mut u8;
     let mut i: u64 = 0;
     let mut consumed: u64 = 0;
-    let mut written: u64 = 0;
+    let mut w_hit: u64 = 0;
+    let mut w_miss: u64 = 0;
 
     loop {
-        // delimit one 4-line record
         let start = i;
         let mut ends = [0u64; 4];
         let mut nl = 0;
@@ -378,7 +378,6 @@ pub unsafe extern "C" fn filter_fastq_block(
             j += 1;
         }
         if nl < 4 {
-            // incomplete record: stop here unless this is the very end
             if last != 0 && start < len {
                 consumed = len;
             }
@@ -386,37 +385,48 @@ pub unsafe extern "C" fn filter_fastq_block(
         }
         let seq_start = ends[0] + 1;
         let seq_end = ends[1];
-        let contaminated = read_is_contaminated(data, seq_start, seq_end, threshold_permille);
-        let keep = if keep_matching != 0 { contaminated } else { !contaminated };
+        let matches = read_matches_reference(data, seq_start, seq_end, threshold_permille);
 
         STATS[0] += 1;
         STATS[2] += seq_end - seq_start;
-        if !keep {
+        if matches {
             STATS[1] += 1;
-        } else {
-            let size = ends[3] + 1 - start;
-            if written + size > out_cap {
-                break; // output buffer full: hand control back
-            }
-            let mut n = 0u64;
-            while n < size {
-                out.add((written + n) as usize)
-                    .write(data.add((start + n) as usize).read());
-                n += 1;
-            }
-            written += size;
         }
+
+        let size = ends[3] + 1 - start;
+        let cap = if matches { cap_hit } else { cap_miss };
+        let written = if matches { w_hit } else { w_miss };
+        if written + size > cap {
+            break; // that side is full: hand back so the caller can flush
+        }
+        let out = (if matches { out_hit } else { out_miss }) as *mut u8;
+        let mut n = 0u64;
+        while n < size {
+            out.add((written + n) as usize)
+                .write(data.add((start + n) as usize).read());
+            n += 1;
+        }
+        if matches { w_hit += size; } else { w_miss += size; }
+
         i = ends[3] + 1;
         consumed = i;
         if i >= len {
             break;
         }
     }
-    LAST_OUT = written;
+    LAST_OUT = w_hit;
+    LAST_OUT2 = w_miss;
     consumed
 }
 
 static mut LAST_OUT: u64 = 0;
+static mut LAST_OUT2: u64 = 0;
+
+/// Bytes written to the non-matching side by the last `split_fastq_block`.
+#[no_mangle]
+pub unsafe extern "C" fn last_out2_len() -> u64 {
+    LAST_OUT2
+}
 
 #[no_mangle]
 pub unsafe extern "C" fn last_out_len() -> u64 {
@@ -424,12 +434,16 @@ pub unsafe extern "C" fn last_out_len() -> u64 {
 }
 
 #[inline(always)]
-/// Cleanifier's criterion is **base coverage**, not a fraction of seeds
-/// (`cleanifier_filter.py: classify_issh`): every matching seed marks its
-/// significant positions in a bitmap, and the read is dropped when the covered
-/// fraction of its length exceeds the threshold. Counting matching seeds
-/// instead under-filters by roughly 8 points on real human reads.
-unsafe fn read_is_contaminated(data: *const u8, start: u64, end: u64, threshold_permille: u32) -> bool {
+/// Does this read match the reference? The criterion is **base coverage**, not a
+/// fraction of seeds (`cleanifier_filter.py: classify_issh`): every matching seed
+/// marks its significant positions in a bitmap, and the read counts as matching
+/// once the covered fraction of its length exceeds the threshold. Counting
+/// matching seeds instead under-selects by roughly 8 points on real human reads.
+///
+/// Note the wording: a match means "this read belongs to the reference", not
+/// "this read is contamination". Whether that is contamination or the signal of
+/// interest is the user's call, which is why both sides are written out.
+unsafe fn read_matches_reference(data: *const u8, start: u64, end: u64, threshold_permille: u32) -> bool {
     let seq_len = end - start;
     if seq_len == 0 || seq_len > 1024 {
         return false;
@@ -496,35 +510,26 @@ unsafe fn cover_popcount(seq_len: u64) -> u64 {
     n
 }
 
-/// Fraction of k-mers present, in permille — used to decide a pair without
-/// writing anything.
+/// Exact same verdict as the single-end path, exposed for the paired-end one.
+///
+/// This must go through `read_matches_reference` rather than reimplement it: an
+/// earlier version kept its own copy of the k-mer loop, was never updated when
+/// spaced seeds and the A=0/C=1/T=2/G=3 encoding landed, and silently made
+/// paired-end filtering return nothing at all.
+#[no_mangle]
+pub unsafe extern "C" fn read_exceeds(ptr: u64, start: u64, end: u64, threshold_permille: u32) -> u32 {
+    if read_matches_reference(ptr as *const u8, start, end, threshold_permille) { 1 } else { 0 }
+}
+
+/// Covered fraction of a read, in permille — for display only. The decision
+/// itself goes through `read_exceeds`, so the two paths cannot drift apart.
 #[no_mangle]
 pub unsafe extern "C" fn score_read(ptr: u64, start: u64, end: u64) -> u64 {
-    let data = ptr as *const u8;
-    let k = K;
-    let shift = 2 * (k - 1);
-    let kmask = if k >= 32 { u64::MAX } else { (1u64 << (2 * k)) - 1 };
-    let (mut fw, mut rc, mut valid, mut total, mut found) = (0u64, 0u64, 0u32, 0u64, 0u64);
-    let mut p = start;
-    while p < end {
-        let c = code(data.add(p as usize).read());
-        if c == 255 {
-            valid = 0;
-        } else {
-            let c = c as u64;
-            fw = ((fw << 2) | c) & kmask;
-            rc = (rc >> 2) | ((3 - c) << shift);
-            valid += 1;
-            if valid >= k {
-                total += 1;
-                if lookup_key(if fw <= rc { fw } else { rc }) {
-                    found += 1;
-                }
-            }
-        }
-        p += 1;
-    }
-    if total == 0 { 0 } else { (found * 1000) / total }
+    let seq_len = end - start;
+    if seq_len == 0 { return 0; }
+    // a threshold of 1001 can never be met, so this only fills the bitmap
+    read_matches_reference(ptr as *const u8, start, end, 1001);
+    (cover_popcount(seq_len) * 1000) / seq_len
 }
 
 // ——————————————— Cleanifier's native windowed-cuckoo format ———————————————

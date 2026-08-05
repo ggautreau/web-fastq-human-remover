@@ -3,14 +3,15 @@
 Four paired-end samples, gzipped (1.3 MB total), 5 000 pairs each. Drop a pair straight into the
 app — `_R1`/`_R2` are grouped automatically and `.gz` is read natively.
 
-| Sample | Content | Human index | rRNA index |
+| Sample | Content | matched, human idx | matched, rRNA idx |
 |---|---|---|---|
 | `sample_with_human` | real human pairs (GIAB HG002, 125 bp) | **94.1 %** | 0.3 % |
 | `sample_without_human` | random DNA + *E. coli* 16S | **0.0 %** | 50.0 % |
 | `sample_with_rrna` | *E. coli* 16S + human 18S | 50.0 % | **100.0 %** |
 | `sample_without_rrna` | random DNA only | **0.0 %** | **0.0 %** |
 
-Percentages are reads removed at threshold 0.5, measured against the published indexes.
+Percentages are reads *matching the reference* at threshold 0.5. Each run writes both a
+`.matched` and an `.unmatched` file — nothing is discarded.
 
 **The off-diagonal figures are correct, not bugs.** `with_rrna` loses half to the human index
 because half of it is the human 18S gene, which genuinely belongs to the human genome.
@@ -24,7 +25,7 @@ break the `without_rrna` guarantee.
 ## Quickest check
 
 Load the **Ribosomal RNA** index (282 MB, downloads in seconds), then run `sample_with_rrna`
-(expect ~100 % removed) and `sample_without_rrna` (expect 0 %). If both land, the whole chain works.
+(expect ~100 % matched) and `sample_without_rrna` (expect 0 %). If both land, the whole chain works.
 
 ## Provenance
 

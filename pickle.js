@@ -1,4 +1,4 @@
-// web-fastq-human-remover — remove reads matching a reference genome, in the browser.
+// web-fastq-human-remover — split reads against a reference genome, in the browser.
 // Copyright (C) 2026 Guillaume Gautreau — MaIAGE (UR 1404), INRAE
 //
 // This program is free software: you can redistribute it and/or modify it under
@@ -7,7 +7,7 @@
 // This program is distributed WITHOUT ANY WARRANTY; see the GNU General Public
 // License for more details: https://www.gnu.org/licenses/
 //
-// Method derived from Cleanifier (MIT) — see NOTICE for attribution.
+// Method derived from Cleanifier (MIT-licensed) — see NOTICE for attribution.
 
 // pickle.js — minimal reader for the pickle protocol, enough to parse
 // Cleanifier's `.info` sidecar without any Python round-trip.

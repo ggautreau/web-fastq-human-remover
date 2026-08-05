@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>web-fastq-human-remover · Remove human reads in your browser</title>
+<title>web-fastq-human-remover · Split reads against a reference, in your browser</title>
 <style>
 :root {
   --bg: #0f1518; --bg-card: #1a2226; --bg-soft: #141a1d; --bg-softer: #10161a;
@@ -110,8 +110,7 @@ td.pct { color: var(--accent); font-weight: 600; }
   max-height: 12rem; overflow-y: auto; white-space: pre-wrap; word-break: break-word; }
 .log .err { color: var(--danger); }
 .log .ok { color: var(--success); }
-footer { color: var(--ink-muted); font-size: .82rem; text-align: center; padding: 1.5rem; line-height: 1.7; }
-.credit { display: inline-block; margin-top: .35rem; opacity: .85; }
+footer { color: var(--ink-muted); font-size: .82rem; text-align: center; padding: 1.5rem; }
 .cite { background: var(--bg-softer); border-left: 3px solid var(--accent); border-radius: var(--radius-sm);
   padding: .7rem .9rem; margin: .6rem 0; font-size: .85rem; color: var(--ink-soft); }
 .cite b { color: var(--ink); }
@@ -177,7 +176,7 @@ footer { color: var(--ink-muted); font-size: .82rem; text-align: center; padding
     <div class="brand-logo">H</div>
     <div class="brand-text">
       <span class="brand-title">web-fastq-human-remover</span>
-      <span class="brand-tagline">Remove human (or any) reads, entirely in your browser</span>
+      <span class="brand-tagline">Split reads against a reference genome, entirely in your browser</span>
     </div>
   </a>
   <nav>
@@ -190,9 +189,9 @@ footer { color: var(--ink-muted); font-size: .82rem; text-align: center; padding
 </header>
 
 <main>
-  <h1>Local decontamination</h1>
-  <p class="sub">Remove from a read set everything that belongs to a reference genome — host,
-     contaminant, vector, PhiX. Files never leave your machine.</p>
+  <h1>Split reads against a reference</h1>
+  <p class="sub">Separate the reads that belong to a reference genome from those that do not —
+     host, vector, PhiX, ribosomal RNA, any FASTA. Files never leave your machine.</p>
 
   <div class="banner banner-info">
     <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
@@ -206,9 +205,8 @@ footer { color: var(--ink-muted); font-size: .82rem; text-align: center; padding
          stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/>
       <path d="M12 9v4M12 17h.01"/></svg>
     <div><b>Unofficial, independent port.</b> The approach — a Cuckoo filter over canonical spaced
-      seeds — is taken from <a href="https://gitlab.com/rahmannlab/cleanifier" target="_blank" rel="noopener">Cleanifier</a>,
-      released under the MIT licence by Zentgraf, Schmitz &amp; Rahmann (Saarland University).
-      This port has <b>no connection to them and carries no endorsement from them</b>. The index
+      seeds — is taken from <a href="https://gitlab.com/rahmannlab/cleanifier" target="_blank" rel="noopener">Cleanifier</a>
+      (MIT licence), <b>with no connection to its authors and without their endorsement</b>. The index
       is rebuilt locally from your own FASTA rather than loaded from the published human index.
       For publishable work, run Cleanifier natively.</div>
   </div>
@@ -311,7 +309,7 @@ footer { color: var(--ink-muted); font-size: .82rem; text-align: center; padding
     <div class="pane" id="paneRef">
       <div class="drop" id="dropRef">
         <b>Drop the reference FASTA</b> or click to browse
-        <div class="drop-sub">.fasta / .fa / .fna, optionally .gz — this is what will be <i>removed</i> from your samples</div>
+        <div class="drop-sub">.fasta / .fa / .fna, optionally .gz — reads matching it go to one file, the rest to another</div>
       </div>
       <input type="file" id="fileRef" accept=".fa,.fasta,.fna,.gz" multiple hidden>
       <div class="chips" id="chipsRef"></div>
@@ -354,16 +352,13 @@ footer { color: var(--ink-muted); font-size: .82rem; text-align: center; padding
       <input type="range" id="threshold" min="1" max="100" value="50">
     </div>
     <p class="note" id="thresholdNote"></p>
-    <p class="note">For a pair, the worse mate decides both reads — dropping one without its mate
+    <p class="note">For a pair, the worse mate decides both reads — splitting one without its mate
       would break mate pairing downstream.</p>
 
-    <div class="row">
-      <label class="lbl">Action:</label>
-      <select id="mode">
-        <option value="remove" selected>Remove matching reads (decontaminate)</option>
-        <option value="extract">Keep only matching reads (extract)</option>
-      </select>
-    </div>
+    <p class="note"><b>Both sides are written.</b> Each sample yields
+      <code>*.matched.fastq</code> (reads found in the reference) and
+      <code>*.unmatched.fastq</code> (the rest). Which one you keep is your call — the tool does not
+      assume that matching the reference means contamination.</p>
   </div>
 
   <!-- ————————————————— output ————————————————— -->
@@ -396,7 +391,7 @@ footer { color: var(--ink-muted); font-size: .82rem; text-align: center; padding
   <div class="card" id="cardRes" style="display:none">
     <h2>Results</h2>
     <table id="tblRes">
-      <thead><tr><th>Sample</th><th>Reads</th><th>Removed</th><th>%</th><th>Time</th><th>Rate</th></tr></thead>
+      <thead><tr><th>Sample</th><th>Reads</th><th>Matched</th><th>%</th><th>Time</th><th>Rate</th></tr></thead>
       <tbody></tbody>
     </table>
   </div>
@@ -427,11 +422,7 @@ footer { color: var(--ink-muted); font-size: .82rem; text-align: center; padding
 
   <footer>
     Runs entirely on your machine · Rust core compiled to WebAssembly (memory64) ·
-    method after <a href="https://gitlab.com/rahmannlab/cleanifier" target="_blank" rel="noopener">Cleanifier</a>,
-    MIT-licensed · this port GPL-3.0
-    <br>
-    <span class="credit">Created using Claude Opus 5.0, prompted by G. Gautreau — MaIAGE unit
-      (UR 1404, Mathématiques et Informatique Appliquées du Génome à l'Environnement), INRAE.</span>
+    method after <a href="https://gitlab.com/rahmannlab/cleanifier" target="_blank" rel="noopener">Cleanifier</a> (MIT)
   </footer>
 </main>
 

@@ -1,4 +1,4 @@
-// web-fastq-human-remover — remove reads matching a reference genome, in the browser.
+// web-fastq-human-remover — split reads against a reference genome, in the browser.
 // Copyright (C) 2026 Guillaume Gautreau — MaIAGE (UR 1404), INRAE
 //
 // This program is free software: you can redistribute it and/or modify it under
@@ -7,11 +7,11 @@
 // This program is distributed WITHOUT ANY WARRANTY; see the GNU General Public
 // License for more details: https://www.gnu.org/licenses/
 //
-// Method derived from Cleanifier (MIT) — see NOTICE for attribution.
+// Method derived from Cleanifier (MIT-licensed) — see NOTICE for attribution.
 
 import { readInfo } from './pickle.js';
 
-// worker.js — the decontamination pipeline. All heavy work happens here;
+// worker.js — the read-splitting pipeline. All heavy work happens here;
 // the main thread only drives the UI.
 //
 // Nothing is ever materialised: FASTQ files stream through
@@ -20,7 +20,7 @@ import { readInfo } from './pickle.js';
 
 const PAGE = 65536;
 const IN_CAP = 32 << 20;   // input buffer
-const OUT_CAP = 40 << 20;  // output: headroom, a whole block may be kept
+const OUT_CAP = 40 << 20;  // per output side; a whole block may land on one side
 
 // IO_BASE must NOT be hardcoded. wasm-ld lays the stack and static data at the
 // bottom of linear memory and their exact extent is only known after linking,
@@ -64,7 +64,7 @@ async function init({ wasmUrl, log2Buckets, seedBits, span }) {
   const heapBase = Number((await WebAssembly.instantiate(mod, { env: { memory: probe } }))
                             .exports.__heap_base.value);
   IO_BASE = align(heapBase);
-  IDX_BASE = IO_BASE + IN_CAP + OUT_CAP;
+  IDX_BASE = IO_BASE + IN_CAP + 2 * OUT_CAP;
 
   const total = IDX_BASE + indexBytes;
   const pages = Math.ceil(total / PAGE);
@@ -148,7 +148,7 @@ async function fetchIndexFromZenodo({ wasmUrl, record, archive, saveDir }) {
   const heapBase = Number((await WebAssembly.instantiate(mod, { env: { memory: probeMem } }))
                             .exports.__heap_base.value);
   IO_BASE = align(heapBase);
-  IDX_BASE = IO_BASE + IN_CAP + OUT_CAP;
+  IDX_BASE = IO_BASE + IN_CAP + 2 * OUT_CAP;
   const pages = Math.ceil((IDX_BASE + first.size + PAGE) / PAGE);
   mem = new WebAssembly.Memory({ initial: BigInt(pages), maximum: MAX_PAGES, address: 'i64' });
   wasm = (await WebAssembly.instantiate(mod, { env: { memory: mem } })).exports;
@@ -273,7 +273,7 @@ async function loadNative({ wasmUrl, filter, info }) {
   const heapBase = Number((await WebAssembly.instantiate(mod, { env: { memory: probe } }))
                             .exports.__heap_base.value);
   IO_BASE = align(heapBase);
-  IDX_BASE = IO_BASE + IN_CAP + OUT_CAP;
+  IDX_BASE = IO_BASE + IN_CAP + 2 * OUT_CAP;
 
   const total = IDX_BASE + filter.size + PAGE;
   const pages = Math.ceil(total / PAGE);
@@ -365,7 +365,7 @@ async function buildIndex({ files }) {
 
 // ————————————————————————— filtering samples —————————————————————————
 
-async function filter({ samples, thresholdPermille, keepMatching, outputDir, gzipOutput }) {
+async function filter({ samples, thresholdPermille, outputDir, gzipOutput }) {
   cancelled = false;
   if (!indexReady) { post('error', { message: 'No index has been built yet.' }); return; }
 
@@ -374,8 +374,8 @@ async function filter({ samples, thresholdPermille, keepMatching, outputDir, gzi
     wasm.reset_stats();
     let paired = null;
     try {
-      if (s.r2) paired = await filterPair(s, thresholdPermille, keepMatching, outputDir, gzipOutput);
-      else await filterSingle(s, thresholdPermille, keepMatching, outputDir, gzipOutput);
+      if (s.r2) paired = await splitPair(s, thresholdPermille, outputDir, gzipOutput);
+      else await splitSingle(s, thresholdPermille, outputDir, gzipOutput);
     } catch (e) {
       post('error', { message: `${s.name}: ${e.name} — ${e.message}` });
       continue;
@@ -385,7 +385,7 @@ async function filter({ samples, thresholdPermille, keepMatching, outputDir, gzi
       name: s.name,
       seconds: +((performance.now() - t0) / 1000).toFixed(1),
       reads: paired ? paired.reads : Number(wasm.stat(0)),
-      dropped: paired ? paired.dropped : Number(wasm.stat(1)),
+      matched: paired ? paired.matched : Number(wasm.stat(1)),
       paired: !!paired
     });
   }
@@ -416,13 +416,16 @@ async function openOutput(dir, name, gzip) {
   };
 }
 
-async function filterSingle(sample, threshold, keepMatching, dir, gzip) {
-  const w = await openOutput(dir, outputName(sample.r1.name, keepMatching), gzip);
+async function splitSingle(sample, threshold, dir, gzip) {
+  const hit = await openOutput(dir, outputName(sample.r1.name, true), gzip);
+  const miss = await openOutput(dir, outputName(sample.r1.name, false), gzip);
   const reader = decodedStream(sample.r1);
+  const OUT_HIT = IO_BASE + IN_CAP;
+  const OUT_MISS = OUT_HIT + OUT_CAP;
   let carry = 0, read = 0;
   try {
     for (;;) {
-      if (cancelled) { await reader.cancel(); await w.abort(); return; }
+      if (cancelled) { await reader.cancel(); await hit.abort(); await miss.abort(); return; }
       const { done, value } = await reader.read();
       if (done) break;
       read += value.length;
@@ -432,13 +435,15 @@ async function filterSingle(sample, threshold, keepMatching, dir, gzip) {
         view.set(value.subarray(pos, pos + n), IO_BASE + carry);
         pos += n;
         const avail = carry + n;
-        const consumed = Number(wasm.filter_fastq_block(
+        const consumed = Number(wasm.split_fastq_block(
           BigInt(IO_BASE), BigInt(avail),
-          BigInt(IO_BASE + IN_CAP), BigInt(OUT_CAP),
-          threshold, keepMatching ? 1 : 0, 0));
-        const out = Number(wasm.last_out_len());
-        // slice(), not subarray(): a view on a SharedArrayBuffer cannot be written out
-        if (out > 0) await w.write(view.slice(IO_BASE + IN_CAP, IO_BASE + IN_CAP + out));
+          BigInt(OUT_HIT), BigInt(OUT_CAP),
+          BigInt(OUT_MISS), BigInt(OUT_CAP),
+          threshold, 0));
+        const nh = Number(wasm.last_out_len()), nm = Number(wasm.last_out2_len());
+        // slice(), not subarray(): a view cannot be handed to a file stream
+        if (nh > 0) await hit.write(view.slice(OUT_HIT, OUT_HIT + nh));
+        if (nm > 0) await miss.write(view.slice(OUT_MISS, OUT_MISS + nm));
         carry = avail - consumed;
         if (carry > 0 && consumed > 0) view.copyWithin(IO_BASE, IO_BASE + consumed, IO_BASE + avail);
         if (consumed === 0 && carry === IN_CAP) throw new Error('record larger than the 32 MiB buffer');
@@ -450,29 +455,33 @@ async function filterSingle(sample, threshold, keepMatching, dir, gzip) {
       });
     }
     if (carry > 0) {
-      wasm.filter_fastq_block(BigInt(IO_BASE), BigInt(carry),
-        BigInt(IO_BASE + IN_CAP), BigInt(OUT_CAP), threshold, keepMatching ? 1 : 0, 1);
-      const out = Number(wasm.last_out_len());
-      if (out > 0) await w.write(view.slice(IO_BASE + IN_CAP, IO_BASE + IN_CAP + out));
+      wasm.split_fastq_block(BigInt(IO_BASE), BigInt(carry),
+        BigInt(OUT_HIT), BigInt(OUT_CAP), BigInt(OUT_MISS), BigInt(OUT_CAP), threshold, 1);
+      const nh = Number(wasm.last_out_len()), nm = Number(wasm.last_out2_len());
+      if (nh > 0) await hit.write(view.slice(OUT_HIT, OUT_HIT + nh));
+      if (nm > 0) await miss.write(view.slice(OUT_MISS, OUT_MISS + nm));
     }
-    await w.close();
-  } catch (e) { try { await w.abort(); } catch {} throw e; }
+    await hit.close(); await miss.close();
+  } catch (e) { try { await hit.abort(); await miss.abort(); } catch {} throw e; }
 }
 
 // Paired-end: one joint decision. A pair leaves or stays whole — dropping a
 // read without its mate would break mate pairing for every downstream tool.
-async function filterPair(sample, threshold, keepMatching, dir, gzip) {
-  const w1 = await openOutput(dir, outputName(sample.r1.name, keepMatching), gzip);
-  const w2 = await openOutput(dir, outputName(sample.r2.name, keepMatching), gzip);
+async function splitPair(sample, threshold, dir, gzip) {
+  const h1 = await openOutput(dir, outputName(sample.r1.name, true), gzip);
+  const h2 = await openOutput(dir, outputName(sample.r2.name, true), gzip);
+  const m1 = await openOutput(dir, outputName(sample.r1.name, false), gzip);
+  const m2 = await openOutput(dir, outputName(sample.r2.name, false), gzip);
+  const sinks = [h1, h2, m1, m2];
   const it1 = records(sample.r1);
   const it2 = records(sample.r2);
-  const SCRATCH = IO_BASE + IN_CAP + OUT_CAP - (1 << 20);
-  let n = 0, dropped = 0, read = 0;
+  const SCRATCH = IO_BASE + IN_CAP + 2 * OUT_CAP - (1 << 20);
+  let n = 0, matched = 0, read = 0;
   const totalSize = sample.r1.size + sample.r2.size;
 
   try {
     for (;;) {
-      if (cancelled) { await w1.abort(); await w2.abort(); return null; }
+      if (cancelled) { for (const s of sinks) await s.abort(); return null; }
       const a = await it1.next(), b = await it2.next();
       if (a.done || b.done) {
         if (a.done !== b.done) throw new Error('R1 and R2 hold a different number of reads');
@@ -481,14 +490,11 @@ async function filterPair(sample, threshold, keepMatching, dir, gzip) {
       const r1 = a.value, r2 = b.value;
       read += r1.raw.length + r2.raw.length;
 
-      const s1 = score(r1.seq, SCRATCH);
-      const s2 = score(r2.seq, SCRATCH);
-      const contaminated = Math.max(s1, s2) >= threshold;  // worst mate decides both
-      const keep = keepMatching ? contaminated : !contaminated;
-
+      // same verdict the single-end path would give, asked of the core itself
+      const hit = verdict(r1.seq, SCRATCH, threshold) || verdict(r2.seq, SCRATCH, threshold);
       n++;
-      if (keep) { await w1.write(r1.raw.slice()); await w2.write(r2.raw.slice()); }
-      else dropped++;
+      if (hit) { matched++; await h1.write(r1.raw.slice()); await h2.write(r2.raw.slice()); }
+      else { await m1.write(r1.raw.slice()); await m2.write(r2.raw.slice()); }
 
       if ((n & 0x3fff) === 0) {
         post('progress', {
@@ -498,14 +504,14 @@ async function filterPair(sample, threshold, keepMatching, dir, gzip) {
         });
       }
     }
-    await w1.close(); await w2.close();
-    return { reads: n * 2, dropped: dropped * 2 };
-  } catch (e) { try { await w1.abort(); await w2.abort(); } catch {} throw e; }
+    for (const s of sinks) await s.close();
+    return { reads: n * 2, matched: matched * 2 };
+  } catch (e) { try { for (const s of sinks) await s.abort(); } catch {} throw e; }
 }
 
-function score(seq, scratch) {
+function verdict(seq, scratch, threshold) {
   view.set(seq, scratch);
-  return Number(wasm.score_read(BigInt(scratch), 0n, BigInt(seq.length)));
+  return wasm.read_exceeds(BigInt(scratch), 0n, BigInt(seq.length), threshold) === 1;
 }
 
 // FASTQ records off a stream, never materialising the file.
@@ -536,8 +542,12 @@ async function* records(file) {
 
 // Always yields an uncompressed base name; openOutput appends .gz when asked,
 // so a gzipped input does not silently produce a plain file called .fastq.gz.
-function outputName(name, keepMatching) {
-  const suffix = keepMatching ? '.matched' : '.clean';
+//
+// Neutral wording on purpose: the tool separates reads that match the reference
+// from those that do not. Calling one side "contamination" would presume an
+// intent the tool cannot know.
+function outputName(name, matching) {
+  const suffix = matching ? '.matched' : '.unmatched';
   const m = name.match(/^(.*?)(\.f(?:ast)?q)(\.gz|\.bgz)?$/i);
   return m ? `${m[1]}${suffix}${m[2]}` : `${name}${suffix}.fastq`;
 }

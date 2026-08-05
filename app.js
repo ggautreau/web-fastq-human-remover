@@ -1,4 +1,4 @@
-// web-fastq-human-remover — remove reads matching a reference genome, in the browser.
+// web-fastq-human-remover — split reads against a reference genome, in the browser.
 // Copyright (C) 2026 Guillaume Gautreau — MaIAGE (UR 1404), INRAE
 //
 // This program is free software: you can redistribute it and/or modify it under
@@ -7,7 +7,7 @@
 // This program is distributed WITHOUT ANY WARRANTY; see the GNU General Public
 // License for more details: https://www.gnu.org/licenses/
 //
-// Method derived from Cleanifier (MIT) — see NOTICE for attribution.
+// Method derived from Cleanifier (MIT-licensed) — see NOTICE for attribution.
 
 // app.js — UI only. No heavy work on this thread: parsing 1 GB here freezes
 // the tab for about 8 seconds, so everything goes to the worker.
@@ -283,7 +283,7 @@ function refreshThreshold() {
   const weight = [...seed.mask].filter(c => c === '#').length;
   const one = 100 / Math.max(1, 150 - seed.mask.length + 1);   // one hit on a 150 bp read
   $('#thresholdNote').innerHTML =
-    `Fraction of a read's seeds that must be present in the reference for it to be removed. ` +
+    `Fraction of a read's bases covered by seeds found in the reference for it to count as matching. ` +
     `On a 150 bp read this seed yields ${150 - seed.mask.length + 1} positions, so anything below ` +
     `<b>${one.toFixed(1)} %</b> means a single shared seed is enough. Weight ${weight}, span ${seed.mask.length}.`;
 }
@@ -392,15 +392,15 @@ function handle(m) {
       break;
 
     case 'sampleDone': {
-      const pct = m.reads ? (m.dropped / m.reads * 100) : 0;
+      const pct = m.reads ? (m.matched / m.reads * 100) : 0;
       const rate = m.seconds > 0 ? Math.round(m.reads / m.seconds) : 0;
       $('#cardRes').style.display = '';
       const tr = document.createElement('tr');
       tr.innerHTML = `<td>${m.name}${m.paired ? ' <span class="paired">PE</span>' : ''}</td>
-        <td>${fmt(m.reads)}</td><td>${fmt(m.dropped)}</td>
+        <td>${fmt(m.reads)}</td><td>${fmt(m.matched)}</td>
         <td class="pct">${pct.toFixed(2)} %</td><td>${m.seconds} s</td><td>${fmt(rate)} reads/s</td>`;
       $('#tblRes tbody').appendChild(tr);
-      log(`${m.name}: ${fmt(m.dropped)}/${fmt(m.reads)} reads removed (${pct.toFixed(2)} %) in ${m.seconds} s`, 'ok');
+      log(`${m.name}: ${fmt(m.matched)}/${fmt(m.reads)} matched the reference (${pct.toFixed(2)} %) in ${m.seconds} s`, 'ok');
       break;
     }
 
@@ -464,12 +464,11 @@ $('#btnRun').onclick = () => {
   state.t0 = performance.now();
   $('#tblRes tbody').innerHTML = '';
   const threshold = Math.round(+$('#threshold').value * 10);   // % -> permille
-  const keepMatching = $('#mode').value === 'extract';
-  log(`filtering ${state.samples.length} sample(s) · threshold ${$('#threshold').value} %` +
-      (keepMatching ? ' · extract mode' : '') + ($('#gzipOut').checked ? ' · gzip output' : ''));
+  log(`splitting ${state.samples.length} sample(s) · threshold ${$('#threshold').value} %`
+      + ($('#gzipOut').checked ? ' · gzip output' : ''));
   worker().postMessage({
     cmd: 'filter', samples: state.samples,
-    thresholdPermille: threshold, keepMatching, outputDir: state.dir,
+    thresholdPermille: threshold, outputDir: state.dir,
     gzipOutput: $('#gzipOut').checked
   });
 };
