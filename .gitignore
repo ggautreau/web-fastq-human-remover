@@ -6,3 +6,5 @@ target-*/
 *.fastq
 *.fastq.gz
 !testdata/ref.fasta
+!testdata/samples/
+!testdata/samples/*.fastq.gz

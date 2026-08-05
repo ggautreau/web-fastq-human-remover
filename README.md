@@ -64,7 +64,8 @@ exhaustive `classify_issh`. This port implements the latter, so compare against 
 
 ## Test data
 
-`testdata/gen_testsets.py` builds four paired-end samples with known ground truth. Measured:
+Ready to use in [`testdata/samples/`](testdata/samples/) — four gzipped paired-end samples, 1.3 MB
+total. Drop a pair into the app directly. `testdata/gen_testsets.py` regenerates them. Measured:
 
 | Sample | Human index | rRNA index |
 |---|---|---|
